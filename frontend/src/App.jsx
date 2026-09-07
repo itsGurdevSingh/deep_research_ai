@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import "./App.css";
 
@@ -31,6 +31,9 @@ function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [researches, setResearches] = useState([]);
+  const [activeResearchId, setActiveResearchId] = useState(null);
+  const activeResearchIdRef = useRef(null);
   const [apiStatus, setApiStatus] = useState("checking");
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 800);
   const [activeStage, setActiveStage] = useState(-1);
@@ -56,10 +59,32 @@ function App() {
     return () => window.clearInterval(timer);
   }, [isRunning]);
 
-  async function runResearch(event) {
+  async function runResearch(event, existingResearchId = null) {
     event?.preventDefault();
     const cleanTopic = topic.trim();
     if (!cleanTopic || isRunning) return;
+    const researchId = existingResearchId || crypto.randomUUID();
+    setResearches((current) =>
+      existingResearchId
+        ? current.map((research) =>
+            research.id === researchId
+              ? { ...research, status: "running", error: null, activeStage: 0 }
+              : research,
+          )
+        : [
+            {
+              id: researchId,
+              topic: cleanTopic,
+              status: "running",
+              result: null,
+              error: null,
+              activeStage: 0,
+            },
+            ...current,
+          ],
+    );
+    setActiveResearchId(researchId);
+    activeResearchIdRef.current = researchId;
     setIsRunning(true);
     setActiveStage(0);
     setResult(null);
@@ -72,7 +97,19 @@ function App() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(JSON.stringify(payload.error || {}));
-      setResult(payload);
+      if (activeResearchIdRef.current === researchId) setResult(payload);
+      setResearches((current) =>
+        current.map((research) =>
+          research.id === researchId
+            ? {
+                ...research,
+                status: "complete",
+                result: payload,
+                activeStage: stages.length,
+              }
+            : research,
+        ),
+      );
       setActiveStage(stages.length);
     } catch (requestError) {
       let details;
@@ -81,15 +118,28 @@ function App() {
       } catch {
         details = {};
       }
-      setError({
+      const nextError = {
         code: details.code || "connection_error",
         message:
           details.message ||
           "The research service could not be reached. Check that the backend is running and try again.",
         retryable: details.retryable ?? true,
-      });
+      };
+      if (activeResearchIdRef.current === researchId) setError(nextError);
+      setResearches((current) =>
+        current.map((research) =>
+          research.id === researchId
+            ? {
+                ...research,
+                status: "error",
+                error: nextError,
+                activeStage: -1,
+              }
+            : research,
+        ),
+      );
     } finally {
-      setIsRunning(false);
+      if (activeResearchIdRef.current === researchId) setIsRunning(false);
     }
   }
 
@@ -98,6 +148,40 @@ function App() {
     setError(null);
     setActiveStage(-1);
     setTopic("");
+    setActiveResearchId(null);
+    activeResearchIdRef.current = null;
+    setIsRunning(false);
+  }
+  function selectResearch(research) {
+    setActiveResearchId(research.id);
+    activeResearchIdRef.current = research.id;
+    setTopic(research.topic);
+    setResult(research.result);
+    setError(research.error);
+    setIsRunning(research.status === "running");
+    setActiveStage(research.activeStage);
+  }
+  function deleteResearch(researchId) {
+    const remaining = researches.filter((research) => research.id !== researchId);
+    setResearches(remaining);
+    if (activeResearchId !== researchId) return;
+    const nextResearch = remaining[0];
+    if (nextResearch) {
+      selectResearch(nextResearch);
+    } else {
+      startNewResearch();
+    }
+  }
+  function stopResearch() {
+    if (!activeResearchId) return;
+    setIsRunning(false);
+    setResearches((current) =>
+      current.map((research) =>
+        research.id === activeResearchId
+          ? { ...research, status: "stopped", activeStage }
+          : research,
+      ),
+    );
   }
   function togglePanel(panel) {
     setExpanded((current) => ({ ...current, [panel]: !current[panel] }));
@@ -134,6 +218,34 @@ function App() {
           <span className="side-dot" />
           Current study
         </div>
+        {researches.length > 0 && (
+          <>
+            <div className="side-label research-list-label">Research</div>
+            <div className="research-list">
+              {researches.map((research) => (
+                <div
+                  className={`research-item ${research.id === activeResearchId ? "selected" : ""}`}
+                  key={research.id}
+                  title={research.topic}
+                >
+                  <button className="research-select" type="button" onClick={() => selectResearch(research)}>
+                    <span className={`research-status ${research.status}`} />
+                    <span>{research.topic}</span>
+                  </button>
+                  <button
+                    className="research-delete"
+                    type="button"
+                    aria-label={`Delete research: ${research.topic}`}
+                    title="Delete research"
+                    onClick={() => deleteResearch(research.id)}
+                  >
+                    <span aria-hidden="true">•••</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
         <div
           className="sidebar-footer"
           title={`Provider status: ${apiStatus === "ready" ? "Ready" : apiStatus === "offline" ? "Offline" : "Checking"}`}
@@ -173,62 +285,119 @@ function App() {
           <span className="topbar-title">Deep research agent</span>
           <span className="topbar-note">Evidence before opinion</span>
         </header>
-        <section className="hero-section">
-          <p className="eyebrow">A considered answer, not a quick one</p>
-          <h1>
-            What would you like
-            <br />
-            <em>to understand?</em>
-          </h1>
-          <p className="intro">
-            I’ll search the web, read the strongest source material, and shape
-            it into a report you can trust.
-          </p>
-          <form className="research-form" onSubmit={runResearch}>
-            <textarea
-              value={topic}
-              onChange={(event) => setTopic(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  runResearch(event);
-                }
-              }}
-              placeholder="Ask a research question..."
-              rows="3"
-              maxLength="500"
-              disabled={isRunning}
-            />
-            <div className="form-footer">
-              <span>{topic.length}/500</span>
+        {!activeResearchId && (
+          <section className="hero-section">
+            <p className="eyebrow">A considered answer, not a quick one</p>
+            <h1>
+              What would you like
+              <br />
+              <em>to understand?</em>
+            </h1>
+            <p className="intro">
+              I’ll search the web, read the strongest source material, and shape
+              it into a report you can trust.
+            </p>
+            <form className="research-form" onSubmit={runResearch}>
+              <textarea
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    runResearch(event);
+                  }
+                }}
+                placeholder="Ask a research question..."
+                rows="3"
+                maxLength="500"
+                disabled={isRunning}
+              />
+              <div className="form-footer">
+                <span>{topic.length}/500</span>
+                <button
+                  className="run-button"
+                  type="submit"
+                  disabled={!topic.trim() || isRunning}
+                >
+                  {isRunning ? "Working..." : "Begin research"} <span>↗</span>
+                </button>
+              </div>
+            </form>
+            {error && (
+              <section className="error-panel" role="alert">
+                <div className="error-icon">!</div>
+                <div>
+                  <strong>
+                    {error.code === "connection_error"
+                      ? "The desk is offline"
+                      : "Research paused"}
+                  </strong>
+                  <p>{error.message}</p>
+                  {error.retryable && (
+                    <button type="button" onClick={runResearch}>
+                      Try again <span>↗</span>
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
+          </section>
+        )}
+        {activeResearchId && (
+          <section className="research-header appear">
+            <div>
+              <p className="eyebrow">Research workspace</p>
+              <h1>{topic}</h1>
+              <p className="research-state">
+                {isRunning
+                  ? "Research is running in the background."
+                  : result
+                    ? "Research complete."
+                    : "Research needs your attention."}
+              </p>
+            </div>
+            <div className="research-actions">
+              {isRunning && (
+                <button
+                  className="stop-button"
+                  type="button"
+                  onClick={stopResearch}
+                >
+                  Stop <span>■</span>
+                </button>
+              )}
               <button
-                className="run-button"
-                type="submit"
-                disabled={!topic.trim() || isRunning}
+                className="quiet-button"
+                type="button"
+                onClick={startNewResearch}
               >
-                {isRunning ? "Working..." : "Begin research"} <span>↗</span>
+                Go back <span>↩</span>
               </button>
             </div>
-          </form>
-          {error && (
-            <section className="error-panel" role="alert">
-              <div className="error-icon">!</div>
-              <div>
-                <strong>
-                  {error.code === "connection_error"
-                    ? "The desk is offline"
-                    : "Research paused"}
-                </strong>
-                <p>{error.message}</p>
+          </section>
+        )}
+        {activeResearchId && error && (
+          <section className="error-panel active-error" role="alert">
+            <div className="error-icon">!</div>
+            <div>
+              <strong>Research paused</strong>
+              <p>{error.message}</p>
+              <div className="error-actions">
                 {error.retryable && (
-                  <button type="button" onClick={runResearch}>
+                  <button
+                    type="button"
+                    onClick={() => runResearch(undefined, activeResearchId)}
+                  >
                     Try again <span>↗</span>
                   </button>
                 )}
+                <button type="button" onClick={startNewResearch}>
+                  Go back <span>↩</span>
+                </button>
               </div>
-            </section>
-          )}
-        </section>
+            </div>
+          </section>
+        )}
         {isRunning && (
           <section className="progress-section appear">
             <div className="section-heading">
@@ -320,6 +489,16 @@ function App() {
                 {result.critique}
               </MarkdownPreview>
             </Panel>
+          </section>
+        )}
+        {activeResearchId && !isRunning && !result && !error && (
+          <section className="stopped-panel appear">
+            <p className="eyebrow">Research stopped</p>
+            <h2>This research is paused</h2>
+            <p>
+              You can return home to start a new workspace, or select another
+              research from the sidebar.
+            </p>
           </section>
         )}
         {!isRunning && !result && !error && (
