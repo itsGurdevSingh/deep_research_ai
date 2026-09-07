@@ -9,7 +9,7 @@ load_dotenv()
 
 llm = ChatMistralAI(
     model = "open-mistral-nemo",
-    temprature = 0
+    temperature=0
 )
 
 # agent 1 search agent 
