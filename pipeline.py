@@ -1,4 +1,5 @@
 from agents import build_serch_agent, build_url_reader_agent, writer_chain, critic_chain
+from threading import Event
 
 
 class ResearchPipelineError(RuntimeError):
@@ -9,6 +10,32 @@ class ResearchPipelineError(RuntimeError):
         self.code = code
         self.message = message
         self.retryable = retryable
+
+
+class ResearchCancelledError(RuntimeError):
+    """Raised when a research job is cancelled between pipeline stages."""
+
+
+def _check_cancelled(cancellation_event: Event | None):
+    if cancellation_event and cancellation_event.is_set():
+        raise ResearchCancelledError()
+
+
+def _content_to_text(content) -> str:
+    """Convert provider message content blocks into the string API contract."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict):
+                text = block.get("text")
+            else:
+                text = getattr(block, "text", None)
+            if text:
+                parts.append(str(text))
+        return "\n".join(parts)
+    return str(content)
 
 
 def _run_stage(stage: str, operation):
@@ -66,7 +93,7 @@ def _run_stage(stage: str, operation):
         ) from error
 
 
-def run_research_pipeline(topic: str) -> dict:
+def run_research_pipeline(topic: str, cancellation_event: Event | None = None) -> dict:
     topic = topic.strip()
     if not topic:
         raise ResearchPipelineError(
@@ -74,6 +101,7 @@ def run_research_pipeline(topic: str) -> dict:
         )
 
     state = {}
+    _check_cancelled(cancellation_event)
 
     # Step 1: Search for relevant information
     search_agent = build_serch_agent()
@@ -86,7 +114,10 @@ def run_research_pipeline(topic: str) -> dict:
         }),
     )
 
-    state["search_results"] = search_response["messages"][-1].content
+    state["search_results"] = _content_to_text(
+        search_response["messages"][-1].content
+    )
+    _check_cancelled(cancellation_event)
 
     # Step 2: Scrape content from the URLs found in the search results
     url_reader_agent = build_url_reader_agent()
@@ -104,7 +135,10 @@ def run_research_pipeline(topic: str) -> dict:
         }),
     )
 
-    state["scraper_results"] = scraper_response["messages"][-1].content
+    state["scraper_results"] = _content_to_text(
+        scraper_response["messages"][-1].content
+    )
+    _check_cancelled(cancellation_event)
 
     # Step 3: Generate a research report based on the gathered information
     report = _run_stage(
@@ -116,12 +150,14 @@ def run_research_pipeline(topic: str) -> dict:
     )
 
     state["report"] = report
+    _check_cancelled(cancellation_event)
 
     # Step 4: Critique the generated report
     critique = _run_stage(
         "report review",
         lambda: critic_chain.invoke({"report": state["report"]}),
     )
+    _check_cancelled(cancellation_event)
 
     state["critique"] = critique
 

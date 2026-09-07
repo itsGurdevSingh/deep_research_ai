@@ -267,8 +267,12 @@
   margin: 0 auto;
 }
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   height: 84px;
   border-bottom: 1px solid var(--line);
+  background: var(--bg);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -399,7 +403,7 @@ h1 em {
 .research-form textarea {
   width: 100%;
   display: block;
-  resize: vertical;
+  resize: none;
   background: transparent;
   color: var(--text);
   border: 0;
@@ -408,6 +412,8 @@ h1 em {
   line-height: 1.5;
   font-size: 15px;
   min-height: 106px;
+  height: 128px;
+  max-height: 128px;
 }
 .research-form textarea::placeholder {
   color: #6f6c67;
@@ -921,6 +927,7 @@ h2 {
     min-height: 128px;
     max-height: 180px;
     resize: none;
+    height: 128px;
     padding: 16px 14px;
     font-size: 16px;
   }

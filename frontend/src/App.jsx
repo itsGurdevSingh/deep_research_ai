@@ -36,6 +36,9 @@ function App() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [activeResearchId, setActiveResearchId] = useState(null);
   const activeResearchIdRef = useRef(null);
+  const researchControllersRef = useRef(new Map());
+  const researchJobsRef = useRef(new Map());
+  const cancelledResearchIdsRef = useRef(new Set());
   const [apiStatus, setApiStatus] = useState("checking");
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 800);
   const [activeStage, setActiveStage] = useState(-1);
@@ -46,9 +49,25 @@ function App() {
   });
 
   useEffect(() => {
-    fetch(`${API_URL}/health`)
-      .then((response) => setApiStatus(response.ok ? "ready" : "offline"))
-      .catch(() => setApiStatus("offline"));
+    async function checkBackendHealth() {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 3000);
+      try {
+        const response = await fetch(`${API_URL}/health`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        setApiStatus(response.ok ? "ready" : "offline");
+      } catch {
+        setApiStatus("offline");
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+
+    checkBackendHealth();
+    const healthTimer = window.setInterval(checkBackendHealth, 10000);
+    return () => window.clearInterval(healthTimer);
   }, []);
 
   useEffect(() => {
@@ -66,6 +85,9 @@ function App() {
     const cleanTopic = topic.trim();
     if (!cleanTopic || isRunning) return;
     const researchId = existingResearchId || crypto.randomUUID();
+    cancelledResearchIdsRef.current.delete(researchId);
+    const controller = new AbortController();
+    researchControllersRef.current.set(researchId, controller);
     setResearches((current) =>
       existingResearchId
         ? current.map((research) =>
@@ -96,9 +118,38 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: cleanTopic }),
+        signal: controller.signal,
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(JSON.stringify(payload.error || {}));
+      const job = await response.json();
+      if (!response.ok) throw new Error(JSON.stringify(job.error || {}));
+      researchJobsRef.current.set(researchId, job.job_id);
+      setResearches((current) =>
+        current.map((research) =>
+          research.id === researchId
+            ? { ...research, jobId: job.job_id }
+            : research,
+        ),
+      );
+      if (cancelledResearchIdsRef.current.has(researchId)) {
+        await cancelJob(job.job_id);
+        throw new DOMException("Research cancelled", "AbortError");
+      }
+
+      const resultResponse = await fetch(
+        `${API_URL}/api/research/${job.job_id}/result`,
+        { signal: controller.signal },
+      );
+      const resultPayload = await resultResponse.json();
+      if (!resultResponse.ok) {
+        throw new Error(JSON.stringify(resultPayload.error || {}));
+      }
+      if (resultPayload.status === "stopped") {
+        throw new DOMException("Research cancelled", "AbortError");
+      }
+      if (resultPayload.status === "error") {
+        throw new Error(JSON.stringify(resultPayload.error || {}));
+      }
+      const payload = resultPayload.result;
       if (activeResearchIdRef.current === researchId) setResult(payload);
       setResearches((current) =>
         current.map((research) =>
@@ -114,6 +165,7 @@ function App() {
       );
       setActiveStage(stages.length);
     } catch (requestError) {
+      if (requestError.name === "AbortError") return;
       let details;
       try {
         details = JSON.parse(requestError.message);
@@ -141,6 +193,7 @@ function App() {
         ),
       );
     } finally {
+      researchControllersRef.current.delete(researchId);
       if (activeResearchIdRef.current === researchId) setIsRunning(false);
     }
   }
@@ -166,6 +219,8 @@ function App() {
   function confirmDeleteResearch() {
     if (!pendingDelete) return;
     const researchId = pendingDelete.id;
+    cancelResearch(researchId);
+    researchControllersRef.current.delete(researchId);
     const remaining = researches.filter(
       (research) => research.id !== researchId,
     );
@@ -200,14 +255,27 @@ function App() {
   }
   function stopResearch() {
     if (!activeResearchId) return;
+    const researchId = activeResearchId;
+    cancelResearch(researchId);
     setIsRunning(false);
     setResearches((current) =>
-      current.map((research) =>
-        research.id === activeResearchId
-          ? { ...research, status: "stopped", activeStage }
-          : research,
-      ),
+      current.filter((research) => research.id !== researchId),
     );
+    startNewResearch();
+  }
+  function cancelResearch(researchId) {
+    cancelledResearchIdsRef.current.add(researchId);
+    const jobId = researchJobsRef.current.get(researchId);
+    if (jobId) {
+      cancelJob(jobId);
+      researchJobsRef.current.delete(researchId);
+    }
+    researchControllersRef.current.get(researchId)?.abort();
+  }
+  function cancelJob(jobId) {
+    return fetch(`${API_URL}/api/research/${jobId}/cancel`, {
+      method: "POST",
+    }).catch(() => {});
   }
   function togglePanel(panel) {
     setExpanded((current) => ({ ...current, [panel]: !current[panel] }));
@@ -344,9 +412,16 @@ function App() {
                 <button
                   className="run-button"
                   type="submit"
-                  disabled={!topic.trim() || isRunning}
+                  disabled={!topic.trim() || isRunning || apiStatus !== "ready"}
                 >
-                  {isRunning ? "Working..." : "Begin research"} <span>↗</span>
+                  {isRunning
+                    ? "Working..."
+                    : apiStatus === "checking"
+                      ? "Checking..."
+                      : apiStatus === "offline"
+                        ? "Backend offline"
+                        : "Begin research"}{" "}
+                  <span>↗</span>
                 </button>
               </div>
             </form>
