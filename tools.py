@@ -19,8 +19,6 @@ def web_search(query: str) -> str:
 
     results = []
 
-    print(tavily_response)
-
     for result in tavily_response["results"]:
         results.append(
             f"Title: {result['title']}\n"
@@ -33,7 +31,7 @@ def web_search(query: str) -> str:
 
 @tool
 def url_scraper(url: str) -> str:
-    """Scrape the content of a URL"""
+    """Scrape the content from a URL"""
     try:
         response = requests.get(url= url, timeout=8, headers= {"User-Agent": "Mozilla/5.0"})
         if response.status_code == 200:
