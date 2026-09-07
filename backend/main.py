@@ -45,11 +45,13 @@ jobs: dict[str, ResearchJob] = {}
 
 allowed_origins = [
     origin.strip()
-    for origin in os.getenv(
-        "ALLOWED_ORIGINS"
-    ).split(",")
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+
+# Optional: add a warning if nothing is set
+if not allowed_origins:
+    print("Warning: ALLOWED_ORIGINS is not set")
 
 app.add_middleware(
     CORSMiddleware,
