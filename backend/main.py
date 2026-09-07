@@ -46,7 +46,7 @@ jobs: dict[str, ResearchJob] = {}
 allowed_origins = [
     origin.strip()
     for origin in os.getenv(
-        "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+        "ALLOWED_ORIGINS"
     ).split(",")
     if origin.strip()
 ]
