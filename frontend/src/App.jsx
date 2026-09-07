@@ -166,7 +166,9 @@ function App() {
   function confirmDeleteResearch() {
     if (!pendingDelete) return;
     const researchId = pendingDelete.id;
-    const remaining = researches.filter((research) => research.id !== researchId);
+    const remaining = researches.filter(
+      (research) => research.id !== researchId,
+    );
     setResearches(remaining);
     setPendingDelete(null);
     if (activeResearchId !== researchId) return;
@@ -179,7 +181,10 @@ function App() {
     const pdf = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const lines = pdf.splitTextToSize(result.report.replace(/[`*_#>-]/g, ""), pageWidth - 96);
+    const lines = pdf.splitTextToSize(
+      result.report.replace(/[`*_#>-]/g, ""),
+      pageWidth - 96,
+    );
     let y = 64;
     pdf.setFont("times", "normal");
     pdf.setFontSize(12);
@@ -259,7 +264,9 @@ function App() {
                     title="Delete research"
                     onClick={() => setPendingDelete(research)}
                   >
-                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                      <path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+                    </svg>
                   </button>
                 </div>
               ))}
@@ -498,7 +505,11 @@ function App() {
               <MarkdownPreview className="report-copy">
                 {result.report}
               </MarkdownPreview>
-              <button className="download-button" type="button" onClick={downloadReport}>
+              <button
+                className="download-button"
+                type="button"
+                onClick={downloadReport}
+              >
                 Download report <span>↓</span>
               </button>
             </article>
@@ -552,13 +563,33 @@ function App() {
       </main>
       {pendingDelete && (
         <div className="dialog-backdrop" role="presentation">
-          <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+          <section
+            className="confirm-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-title"
+          >
             <p className="eyebrow">Delete research</p>
             <h2 id="delete-title">Remove this research?</h2>
-            <p>This will remove “{pendingDelete.topic}” from your workspace. This action cannot be undone.</p>
+            <p>
+              This will remove “{pendingDelete.topic}” from your workspace. This
+              action cannot be undone.
+            </p>
             <div className="dialog-actions">
-              <button className="quiet-button" type="button" onClick={() => setPendingDelete(null)}>Cancel</button>
-              <button className="delete-confirm-button" type="button" onClick={confirmDeleteResearch}>Delete research</button>
+              <button
+                className="quiet-button"
+                type="button"
+                onClick={() => setPendingDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="delete-confirm-button"
+                type="button"
+                onClick={confirmDeleteResearch}
+              >
+                Delete research
+              </button>
             </div>
           </section>
         </div>

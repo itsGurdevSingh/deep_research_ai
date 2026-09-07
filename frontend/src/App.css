@@ -769,7 +769,10 @@ h2 {
   color: var(--muted);
   padding: 10px 14px;
   font-size: 12px;
-  transition: color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
 }
 .download-button span {
   margin-left: 10px;
