@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { jsPDF } from "jspdf";
 import "./App.css";
@@ -39,6 +39,7 @@ function App() {
   const researchControllersRef = useRef(new Map());
   const researchJobsRef = useRef(new Map());
   const cancelledResearchIdsRef = useRef(new Set());
+  const reportScrollRef = useRef(null);
   const [apiStatus, setApiStatus] = useState("checking");
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 800);
   const [activeStage, setActiveStage] = useState(-1);
@@ -79,6 +80,12 @@ function App() {
     );
     return () => window.clearInterval(timer);
   }, [isRunning]);
+
+  useEffect(() => {
+    if (result && activeResearchId && reportScrollRef.current) {
+      reportScrollRef.current.scrollTop = 0;
+    }
+  }, [activeResearchId, result]);
 
   async function runResearch(event, existingResearchId = null) {
     event?.preventDefault();
@@ -346,7 +353,7 @@ function App() {
           title={`Provider status: ${apiStatus === "ready" ? "Ready" : apiStatus === "offline" ? "Offline" : "Checking"}`}
         >
           <span className="status-dot" />
-          Provider status{" "}
+          <span className="status-label">Provider status</span>
           <strong>
             {apiStatus === "checking"
               ? "Checking"
@@ -378,6 +385,13 @@ function App() {
             <span />
           </button>
           <span className="topbar-title">Deep research agent</span>
+          <span className={`mobile-api-status ${apiStatus}`}>
+            {apiStatus === "checking"
+              ? "Checking"
+              : apiStatus === "ready"
+                ? "Ready"
+                : "Offline"}
+          </span>
           <span className="topbar-note">Evidence before opinion</span>
         </header>
         {!activeResearchId && (
@@ -577,7 +591,11 @@ function App() {
             </Panel>
             <article className="report-block">
               <p className="eyebrow">The report</p>
-              <MarkdownPreview className="report-copy">
+              <MarkdownPreview
+                key={activeResearchId}
+                ref={reportScrollRef}
+                className="report-copy"
+              >
                 {result.report}
               </MarkdownPreview>
               <button
@@ -673,9 +691,12 @@ function App() {
   );
 }
 
-function MarkdownPreview({ children, className }) {
+const MarkdownPreview = forwardRef(function MarkdownPreview(
+  { children, className },
+  ref,
+) {
   return (
-    <div className={`${className} markdown-preview`}>
+    <div ref={ref} className={`${className} markdown-preview`}>
       <ReactMarkdown
         components={{
           a: ({ href, children: linkChildren }) => (
@@ -689,7 +710,7 @@ function MarkdownPreview({ children, className }) {
       </ReactMarkdown>
     </div>
   );
-}
+});
 
 function Panel({ title, meta, open, onToggle, children }) {
   return (
