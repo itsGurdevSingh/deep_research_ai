@@ -45,6 +45,3 @@ def url_scraper(url: str) -> str:
         return f"Error scraping the URL: {str(e)}"
 
 
-print(url_scraper.invoke("https://www.nature.com/articles/s41586-020-2649-2"))
-
-
