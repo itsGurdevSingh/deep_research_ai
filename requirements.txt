@@ -1,0 +1,44 @@
+# Core LLM + LangChain ecosystem
+langchain==1.4.0
+langchain-core==1.6.2
+langchain-community==0.4.2
+langchain-openai==1.6.0
+langchain-mistralai==1.1.6
+
+# OpenAI
+openai==3.8.0
+
+# Tavily Search Tool
+tavily-python==0.8.1
+
+# Web scraping
+beautifulsoup4==4.15.0
+requests==2.34.2
+lxml==6.1.3
+
+# Environment variables
+python-dotenv==1.2.3
+
+# Async support (important for agents/tools)
+aiohttp==3.14.3
+
+# Data handling (optional but useful in pipelines)
+pandas==3.0.5
+
+# Token counting / text utils
+tiktoken==0.14.0
+
+# Logging / debugging (optional but recommended)
+rich==15.0.0
+
+# Retry + robustness
+tenacity==9.1.4
+
+# JSON handling improvements
+orjson==3.12.0
+
+# Typing support (helps in bigger projects)
+pydantic==2.13.5
+
+# Optional (for advanced parsing / HTML cleanup)
+html5lib==1.1
