@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { jsPDF } from "jspdf";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
@@ -32,6 +33,7 @@ function App() {
   const [error, setError] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [researches, setResearches] = useState([]);
+  const [pendingDelete, setPendingDelete] = useState(null);
   const [activeResearchId, setActiveResearchId] = useState(null);
   const activeResearchIdRef = useRef(null);
   const [apiStatus, setApiStatus] = useState("checking");
@@ -161,16 +163,35 @@ function App() {
     setIsRunning(research.status === "running");
     setActiveStage(research.activeStage);
   }
-  function deleteResearch(researchId) {
+  function confirmDeleteResearch() {
+    if (!pendingDelete) return;
+    const researchId = pendingDelete.id;
     const remaining = researches.filter((research) => research.id !== researchId);
     setResearches(remaining);
+    setPendingDelete(null);
     if (activeResearchId !== researchId) return;
     const nextResearch = remaining[0];
-    if (nextResearch) {
-      selectResearch(nextResearch);
-    } else {
-      startNewResearch();
-    }
+    if (nextResearch) selectResearch(nextResearch);
+    else startNewResearch();
+  }
+  function downloadReport() {
+    if (!result?.report) return;
+    const pdf = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const lines = pdf.splitTextToSize(result.report.replace(/[`*_#>-]/g, ""), pageWidth - 96);
+    let y = 64;
+    pdf.setFont("times", "normal");
+    pdf.setFontSize(12);
+    lines.forEach((line) => {
+      if (y > pageHeight - 56) {
+        pdf.addPage();
+        y = 56;
+      }
+      pdf.text(line, 48, y);
+      y += 18;
+    });
+    pdf.save("deep-research-report.pdf");
   }
   function stopResearch() {
     if (!activeResearchId) return;
@@ -213,11 +234,6 @@ function App() {
         >
           <span>+</span> New research
         </button>
-        <div className="side-label">Workspace</div>
-        <div className="side-item active" title="Current study">
-          <span className="side-dot" />
-          Current study
-        </div>
         {researches.length > 0 && (
           <>
             <div className="side-label research-list-label">Research</div>
@@ -228,7 +244,11 @@ function App() {
                   key={research.id}
                   title={research.topic}
                 >
-                  <button className="research-select" type="button" onClick={() => selectResearch(research)}>
+                  <button
+                    className="research-select"
+                    type="button"
+                    onClick={() => selectResearch(research)}
+                  >
                     <span className={`research-status ${research.status}`} />
                     <span>{research.topic}</span>
                   </button>
@@ -237,9 +257,9 @@ function App() {
                     type="button"
                     aria-label={`Delete research: ${research.topic}`}
                     title="Delete research"
-                    onClick={() => deleteResearch(research.id)}
+                    onClick={() => setPendingDelete(research)}
                   >
-                    <span aria-hidden="true">•••</span>
+                    <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
                   </button>
                 </div>
               ))}
@@ -343,7 +363,7 @@ function App() {
             )}
           </section>
         )}
-        {activeResearchId && (
+        {activeResearchId && !result && (
           <section className="research-header appear">
             <div>
               <p className="eyebrow">Research workspace</p>
@@ -478,6 +498,9 @@ function App() {
               <MarkdownPreview className="report-copy">
                 {result.report}
               </MarkdownPreview>
+              <button className="download-button" type="button" onClick={downloadReport}>
+                Download report <span>↓</span>
+              </button>
             </article>
             <Panel
               title="Critical review"
@@ -527,6 +550,19 @@ function App() {
           </div>
         )}
       </main>
+      {pendingDelete && (
+        <div className="dialog-backdrop" role="presentation">
+          <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-title">
+            <p className="eyebrow">Delete research</p>
+            <h2 id="delete-title">Remove this research?</h2>
+            <p>This will remove “{pendingDelete.topic}” from your workspace. This action cannot be undone.</p>
+            <div className="dialog-actions">
+              <button className="quiet-button" type="button" onClick={() => setPendingDelete(null)}>Cancel</button>
+              <button className="delete-confirm-button" type="button" onClick={confirmDeleteResearch}>Delete research</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

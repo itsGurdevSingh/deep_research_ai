@@ -36,7 +36,6 @@
   right: 16px;
   width: 28px;
   height: 28px;
-  display: grid;
   place-items: center;
   border: 1px solid transparent;
   background: transparent;
@@ -222,7 +221,18 @@
   font-size: 10px;
   letter-spacing: 1px;
   opacity: 0;
-  transition: opacity 0.2s ease, color 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease;
+}
+.research-delete svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
 }
 .research-item:hover .research-delete,
 .research-item:focus-within .research-delete {
@@ -751,6 +761,25 @@ h2 {
 .report-copy p {
   margin-bottom: 22px;
 }
+.download-button {
+  align-self: flex-start;
+  margin-top: 24px;
+  border: 1px solid #4a4843;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 14px;
+  font-size: 12px;
+  transition: color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.download-button span {
+  margin-left: 10px;
+  font-size: 16px;
+}
+.download-button:hover {
+  color: var(--cream);
+  border-color: #77736e;
+  transform: translateY(-2px);
+}
 .critique-copy {
   max-width: 750px;
 }
@@ -978,6 +1007,46 @@ h2 {
 }
 .error-panel {
   flex-shrink: 0;
+}
+.dialog-backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.68);
+}
+.confirm-dialog {
+  width: min(100%, 430px);
+  padding: 28px;
+  border: 1px solid #3d3b37;
+  background: var(--surface);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+.confirm-dialog h2 {
+  font-size: 25px;
+}
+.confirm-dialog > p:not(.eyebrow) {
+  margin: 12px 0 24px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.delete-confirm-button {
+  border: 1px solid #795846;
+  background: #3a2820;
+  color: #e0b292;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.delete-confirm-button:hover {
+  border-color: #b17b5e;
 }
 
 /* Preserve scrolling without showing browser scroll tracks anywhere. */
